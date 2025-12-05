@@ -1,0 +1,7 @@
+{
+  "name": "wildcord",
+  "description": "The smartest path for your best friend. AI-powered dog hiking tracker with breed-specific bio-metrics and safety alerts.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
