@@ -17,6 +17,7 @@ export interface MedicalCondition {
 }
 
 export interface DogProfile {
+  id: string; // Unique ID for the dog
   name: string;
   age: number;
   weightKg: number;
@@ -55,6 +56,7 @@ export interface HikeSession {
 
 export interface CompletedHike extends Omit<HikeSession, 'isActive'> {
   id: string;
+  dogId: string; // Link to specific dog
   completedAt: number; // Timestamp
   dateStr: string; // ISO Date string for grouping
   aiAnalysis?: string; // Persisted Gemini Analysis

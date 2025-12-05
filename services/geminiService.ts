@@ -1,9 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { DogProfile, ActivityLevel, Trail, CompletedHike, WeatherData } from "../types";
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 // Helper to extract JSON from markdown code blocks
 const extractJson = (text: string) => {
   try {
@@ -40,6 +37,7 @@ const extractJson = (text: string) => {
  */
 export const analyzeBreed = async (breedName: string): Promise<Partial<DogProfile>> => {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = "gemini-2.5-flash";
     const prompt = `
       Search for the dog breed "${breedName}".
@@ -88,47 +86,56 @@ export const analyzeBreed = async (breedName: string): Promise<Partial<DogProfil
 };
 
 /**
- * Fetches real-time weather using Gemini Grounding.
+ * Fetches real-time weather using Open-Meteo API.
  */
 export const getCurrentWeather = async (lat: number, lng: number): Promise<WeatherData> => {
-  const fallback: WeatherData = {
-    tempF: 70,
-    condition: "Fair",
-    humidity: 50,
-    realFeelF: 70
-  };
-
   try {
-    const model = "gemini-2.5-flash";
-    const prompt = `
-      Find the current weather conditions for coordinates ${lat}, ${lng}.
-      Return ONLY a JSON object:
-      {
-        "tempF": number,
-        "condition": "string (Short description e.g. 'Sunny')",
-        "humidity": number (0-100),
-        "realFeelF": number
-      }
-    `;
-
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
-
-    if (response.text) {
-      const data = extractJson(response.text);
-      if (data && typeof data.tempF === 'number') {
-        return data as WeatherData;
-      }
+    // Using Open-Meteo API for reliable, free, non-key weather data
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&temperature_unit=fahrenheit`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Weather API Error: ${response.statusText}`);
     }
-    return fallback;
+
+    const data = await response.json();
+    const current = data.current;
+
+    // WMO Weather interpretation codes (https://open-meteo.com/en/docs)
+    const getCondition = (code: number) => {
+        if (code === 0) return "Clear Sky";
+        if (code === 1) return "Mainly Clear";
+        if (code === 2) return "Partly Cloudy";
+        if (code === 3) return "Overcast";
+        if ([45, 48].includes(code)) return "Foggy";
+        if ([51, 53, 55].includes(code)) return "Drizzle";
+        if ([56, 57].includes(code)) return "Freezing Drizzle";
+        if ([61, 63, 65].includes(code)) return "Rain";
+        if ([66, 67].includes(code)) return "Freezing Rain";
+        if ([71, 73, 75].includes(code)) return "Snow";
+        if (code === 77) return "Snow Grains";
+        if ([80, 81, 82].includes(code)) return "Rain Showers";
+        if ([85, 86].includes(code)) return "Snow Showers";
+        if ([95, 96, 99].includes(code)) return "Thunderstorm";
+        return "Unknown";
+    };
+
+    return {
+      tempF: current.temperature_2m,
+      condition: getCondition(current.weather_code),
+      humidity: current.relative_humidity_2m,
+      realFeelF: current.apparent_temperature
+    };
+
   } catch (error) {
     console.error("Weather fetch failed", error);
-    return fallback;
+    
+    return {
+      tempF: 70,
+      condition: "Fair",
+      humidity: 50,
+      realFeelF: 70
+    };
   }
 };
 
@@ -142,6 +149,7 @@ export const getSmartTrailRecommendations = async (
   coords?: { lat: number; lng: number }
 ): Promise<Trail[]> => {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = "gemini-2.5-flash";
     const conditions = profile.medicalConditions.join(", ");
     
@@ -238,6 +246,7 @@ export const generatePostActivityAnalysis = async (
   weather: WeatherData
 ): Promise<string> => {
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = "gemini-2.5-flash";
     
     const prompt = `
